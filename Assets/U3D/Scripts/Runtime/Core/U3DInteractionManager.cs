@@ -1,0 +1,148 @@
+﻿using UnityEngine;
+
+namespace U3D
+{
+    /// <summary>
+    /// Handles interaction detection and dispatch for the U3D interaction system.
+    /// Uses an OverlapSphere centered on the player to find nearby interactables.
+    /// The closest one that CanInteract() returns true wins. No priority scoring,
+    /// no directionality — proximity alone determines selection.
+    ///
+    /// If the player is currently holding a grabbable object, R is routed directly
+    /// to that object so it can handle its own release. The OverlapSphere is skipped
+    /// in that case.
+    /// </summary>
+    public class U3DInteractionManager : MonoBehaviour
+    {
+        [Header("Interaction Detection")]
+        [Tooltip("Radius of the OverlapSphere used to find interactables near the player.")]
+        [SerializeField] private float interactionRange = 3f;
+
+        [Tooltip("Layers checked by the interaction OverlapSphere.")]
+        [SerializeField] private LayerMask interactionLayerMask = -1;
+
+        [Tooltip("Show the interaction range sphere in the Scene view when this object is selected.")]
+        [SerializeField] private bool debugMode = false;
+
+        private static U3DInteractionManager instance;
+        private U3DPlayerController localPlayerController;
+
+        public static U3DInteractionManager Instance
+        {
+            get
+            {
+                if (instance == null)
+                    instance = FindAnyObjectByType<U3DInteractionManager>();
+                return instance;
+            }
+        }
+
+        private void Awake()
+        {
+            if (instance == null)
+            {
+                instance = this;
+            }
+            else if (instance != this)
+            {
+                Debug.LogWarning("Multiple InteractionManagers found. Destroying duplicate on: " + gameObject.name);
+                Destroy(this);
+                return;
+            }
+        }
+
+        private void Start()
+        {
+            FindLocalPlayer();
+        }
+
+        private void Update()
+        {
+            if (localPlayerController == null)
+                FindLocalPlayer();
+        }
+
+        private void FindLocalPlayer()
+        {
+            localPlayerController = U3DPlayerController.FindLocalPlayer();
+        }
+
+        /// <summary>
+        /// Called by PlayerController when the interact button is pressed.
+        /// If the player is holding a grabbable, route the press to that object for release.
+        /// Otherwise find the closest interactable within range.
+        ///
+        /// Worldspace UI interaction is NOT handled here — U3DGazePointer reads the Interact
+        /// action directly and runs UI event dispatch in its own Update loop, off the network tick.
+        /// </summary>
+        public void OnPlayerInteract()
+        {
+            if (localPlayerController == null) return;
+
+            if (U3DGrabbable.CurrentlyGrabbed != null)
+            {
+                U3DGrabbable.CurrentlyGrabbed.OnInteract();
+                return;
+            }
+
+            IU3DInteractable target = GetBestInteractable();
+            if (target != null)
+                target.OnInteract();
+        }
+
+        /// <summary>
+        /// OverlapSphere centered on the player. Returns the closest IU3DInteractable
+        /// whose CanInteract() returns true. Closest wins, no priority, no directionality.
+        /// </summary>
+        private IU3DInteractable GetBestInteractable()
+        {
+            if (localPlayerController == null) return null;
+
+            Vector3 playerPosition = localPlayerController.transform.position;
+
+            Collider[] colliders = Physics.OverlapSphere(playerPosition, interactionRange,
+                interactionLayerMask, QueryTriggerInteraction.Collide);
+
+            IU3DInteractable best = null;
+            float closestDistance = Mathf.Infinity;
+
+            foreach (Collider col in colliders)
+            {
+                IU3DInteractable interactable = col.GetComponentInParent<IU3DInteractable>();
+                if (interactable == null || !interactable.CanInteract()) continue;
+
+                float distance = Vector3.Distance(playerPosition,
+                    ((MonoBehaviour)interactable).transform.position);
+
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    best = interactable;
+                }
+            }
+
+            return best;
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (!debugMode) return;
+            if (localPlayerController == null) return;
+
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(localPlayerController.transform.position, interactionRange);
+        }
+    }
+
+    /// <summary>
+    /// Interface that all interactable objects must implement.
+    /// </summary>
+    public interface IU3DInteractable
+    {
+        void OnInteract();
+        void OnPlayerEnterRange();
+        void OnPlayerExitRange();
+        bool CanInteract();
+        string GetInteractionPrompt();
+    }
+}
