@@ -1,10 +1,10 @@
 {
-  "id": "https://unreality3d.com/MakerComet/space-cafe/",
+  "id": "https://unreality3d.com/makercomet/space-cafe/",
   "name": "MakerComet's Space Cafe",
   "short_name": "Space Cafe",
   "description": "MakerComet's Space Cafe — an interactive 3D experience powered by Unreality3D",
-  "start_url": "https://unreality3d.com/MakerComet/space-cafe/",
-  "scope": "https://unreality3d.com/MakerComet/space-cafe/",
+  "start_url": "https://unreality3d.com/makercomet/space-cafe/",
+  "scope": "https://unreality3d.com/makercomet/space-cafe/",
   "display": "fullscreen",
   "display_override": [
     "fullscreen",
